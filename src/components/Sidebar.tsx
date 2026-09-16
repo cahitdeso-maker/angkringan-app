@@ -19,6 +19,18 @@ const menuItems = [
     roles: ["Admin", "Kasir"],
   },
   { href: "/menu", label: "Menu", icon: "🍽️", roles: ["Admin"] },
+  {
+    href: "/bahan-baku",
+    label: "Bahan Baku",
+    icon: "🧺",
+    roles: ["Admin"],
+  },
+  {
+    href: "/gabung-bahan",
+    label: "Gabung Bahan",
+    icon: "🔗",
+    roles: ["Admin"],
+  },
   { href: "/laporan", label: "Laporan", icon: "📈", roles: ["Admin"] },
   { href: "/users", label: "Users", icon: "👥", roles: ["Admin"] },
 ];

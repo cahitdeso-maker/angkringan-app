@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   getMenu,
   addMenu,
@@ -13,24 +13,46 @@ import {
   toggleStatusKategori,
   getKategoriAktif,
   formatRupiah,
+  getRawMaterials,
+  getProductRecipe,
+  saveProductRecipe,
+  updateProductMargin,
   KategoriItem,
 } from "@/lib/data";
-import { Menu } from "@/lib/types";
+import { Menu, RawMaterial } from "@/lib/types";
+import {
+  hitungBiayaResep,
+  hitungHppTotal,
+  hitungHargaJualDisarankan,
+} from "@/lib/hpp";
 
 const EMOJIS =
   "🍚 🍛 🍜 🍢 🥚 🧈 🫘 🍌 🧋 🍊 ☕ 🥛 🍳 🐟 💧 🍽️ 🥟 🍗 🥩 🌭 🍔 🍟 🍕 🥪 🥤 🍰 🧁 🍩 🍫 🍮 🥥 🌽 🍠".split(
     " ",
   );
 
+interface RecipeRowDraft {
+  raw_material_id: string;
+  takaran: number;
+  biaya: number;
+  _nama_bahan?: string;
+  _satuan_kecil?: string;
+  _harga_per_satuan_kecil?: number;
+}
+
 export default function MenuPage() {
   const [menuList, setMenuList] = useState<Menu[]>([]);
   const [kategoriList, setKategoriList] = useState<KategoriItem[]>([]);
+  const [rawMaterials, setRawMaterials] = useState<RawMaterial[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [showKatModal, setShowKatModal] = useState(false);
   const [editingMenu, setEditingMenu] = useState<Menu | null>(null);
   const [showDelete, setShowDelete] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [newKatName, setNewKatName] = useState("");
+  const [savingRecipe, setSavingRecipe] = useState(false);
+  const [recipeError, setRecipeError] = useState("");
+  const [recipeItems, setRecipeItems] = useState<RecipeRowDraft[]>([]);
   const [form, setForm] = useState({
     nama_menu: "",
     kategori: "",
@@ -38,6 +60,8 @@ export default function MenuPage() {
     foto: "🍽️",
     status: "Tersedia" as Menu["status"],
   });
+  const [marginPercent, setMarginPercent] = useState<number | "">("");
+  const [hargaJualManual, setHargaJualManual] = useState<number | "">("");
 
   // Inline edit state (inside kategori modal)
   const [editingKatId, setEditingKatId] = useState<string | null>(null);
@@ -48,8 +72,12 @@ export default function MenuPage() {
   );
 
   const reload = async () => {
-    const menuData = await getMenu();
+    const [menuData, rmData] = await Promise.all([
+      getMenu(),
+      getRawMaterials(),
+    ]);
     setMenuList(menuData);
+    setRawMaterials(rmData);
     setKategoriList(getKategori());
   };
 
@@ -73,13 +101,18 @@ export default function MenuPage() {
       status: "Tersedia",
     });
     setEditingMenu(null);
+    setRecipeItems([]);
+    setMarginPercent("");
+    setHargaJualManual("");
+    setRecipeError("");
   };
 
   const openAdd = () => {
     resetForm();
     setShowModal(true);
   };
-  const openEdit = (menu: Menu) => {
+
+  const openEdit = async (menu: Menu) => {
     setForm({
       nama_menu: menu.nama_menu,
       kategori: menu.kategori,
@@ -88,15 +121,83 @@ export default function MenuPage() {
       status: menu.status,
     });
     setEditingMenu(menu);
+    setMarginPercent(
+      menu.margin_percent == null ? "" : (menu.margin_percent as number),
+    );
+    setHargaJualManual("");
+    setRecipeError("");
+
+    // Load resep existing
+    const recipe = await getProductRecipe(menu.id);
+    setRecipeItems(
+      recipe.map((r) => ({
+        raw_material_id: r.raw_material_id,
+        takaran: r.takaran,
+        biaya: r.biaya,
+        _nama_bahan: r.nama_bahan,
+        _satuan_kecil: r.satuan_kecil || "",
+        _harga_per_satuan_kecil: r.harga_per_satuan_kecil || 0,
+      })),
+    );
     setShowModal(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.nama_menu || form.harga <= 0) return;
-    if (editingMenu) await updateMenu(editingMenu.id, form);
-    else await addMenu(form);
-    await reload();
+
+    let savedId = editingMenu?.id;
+
+    const finalHarga =
+      hargaJualManual !== "" ? Number(hargaJualManual) : form.harga;
+
+    if (editingMenu) {
+      await updateMenu(editingMenu.id, {
+        nama_menu: form.nama_menu,
+        kategori: form.kategori,
+        harga: finalHarga,
+        foto: form.foto,
+        status: form.status,
+      });
+    } else {
+      const created = await addMenu({
+        ...form,
+        harga: finalHarga,
+      });
+      savedId = created.id;
+    }
+
+    if (savedId) {
+      setSavingRecipe(true);
+      try {
+        const validItems = recipeItems
+          .filter((r) => r.raw_material_id && Number(r.takaran) > 0)
+          .map((r) => ({
+            raw_material_id: r.raw_material_id,
+            takaran: Number(r.takaran),
+          }));
+
+        if (validItems.length > 0) {
+          await saveProductRecipe(savedId, validItems);
+        }
+
+        if (marginPercent !== "" || hargaJualManual !== "") {
+          await updateProductMargin(savedId, {
+            ...(marginPercent !== "" ? { margin_percent: Number(marginPercent) } : {}),
+            ...(hargaJualManual !== ""
+              ? { harga_jual: Number(hargaJualManual) }
+              : {}),
+          });
+        }
+
+        await reload();
+      } catch (err: any) {
+        setRecipeError(err.message || "Gagal menyimpan resep");
+      } finally {
+        setSavingRecipe(false);
+      }
+    }
+
     setShowModal(false);
     resetForm();
   };
@@ -158,6 +259,77 @@ export default function MenuPage() {
     await reload();
   };
 
+  // ===== RESEP =====
+  const addRecipeRow = () => {
+    setRecipeItems((prev) => [
+      ...prev,
+      {
+        raw_material_id: "",
+        takaran: 0,
+        biaya: 0,
+        _nama_bahan: "",
+        _satuan_kecil: "",
+        _harga_per_satuan_kecil: 0,
+      },
+    ]);
+  };
+
+  const removeRecipeRow = (index: number) => {
+    setRecipeItems((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const updateRecipeRow = (
+    index: number,
+    field: "raw_material_id" | "takaran",
+    value: string,
+  ) => {
+    setRecipeItems((prev) => {
+      const next = [...prev];
+      if (field === "raw_material_id") {
+        next[index] = { ...next[index], raw_material_id: value };
+        if (value) {
+          const rm = rawMaterials.find((r) => r.id === value);
+          if (rm) {
+            next[index]._nama_bahan = rm.nama_bahan;
+            next[index]._satuan_kecil = rm.satuan_kecil;
+            next[index]._harga_per_satuan_kecil = rm.harga_per_satuan_kecil;
+            next[index].biaya = hitungBiayaResep(
+              Number(next[index].takaran) || 0,
+              rm.harga_per_satuan_kecil,
+            );
+          }
+        }
+      }
+      if (field === "takaran") {
+        next[index] = { ...next[index], takaran: Number(value) || 0 };
+        const rm = rawMaterials.find(
+          (r) => r.id === next[index].raw_material_id,
+        );
+        next[index].biaya = hitungBiayaResep(
+          Number(value) || 0,
+          rm ? rm.harga_per_satuan_kecil : next[index]._harga_per_satuan_kecil || 0,
+        );
+      }
+      return next;
+    });
+  };
+
+  const hppTotal = useMemo(() => {
+    return hitungHppTotal(
+      recipeItems.map((r) => ({
+        takaran: Number(r.takaran) || 0,
+        hargaPerSatuanKecil: r._harga_per_satuan_kecil || 0,
+      })),
+    );
+  }, [recipeItems]);
+
+  const hargaJualDisarankan = useMemo(() => {
+    return hitungHargaJualDisarankan(
+      hppTotal,
+      marginPercent === "" ? null : Number(marginPercent),
+    );
+  }, [hppTotal, marginPercent]);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-2">
@@ -166,7 +338,7 @@ export default function MenuPage() {
             🍽️ Manajemen Menu
           </h1>
           <p className="text-angkringan-light/60 text-sm mt-1">
-            Kelola menu makanan & minuman
+            Kelola menu & hitung HPP (Harga Pokok Penjualan)
           </p>
         </div>
         <div className="flex gap-2">
@@ -206,8 +378,29 @@ export default function MenuPage() {
             </h3>
             <p className="text-angkringan-gold text-sm">{menu.kategori}</p>
             <span className="text-angkringan-accent font-bold text-lg">
-              {formatRupiah(menu.harga)}
+              {formatRupiah(menu.harga_jual || menu.harga)}
             </span>
+
+            {/* Info HPP */}
+            {menu.hpp_total && menu.hpp_total > 0 ? (
+              <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                <span className="badge bg-purple-600/20 text-purple-300 border border-purple-600/30">
+                  HPP {formatRupiah(menu.hpp_total)}
+                </span>
+                {menu.margin_percent != null && (
+                  <span className="badge bg-cyan-600/20 text-cyan-300 border border-cyan-600/30">
+                    Margin {menu.margin_percent}%
+                  </span>
+                )}
+              </div>
+            ) : (
+              <div className="mt-2">
+                <span className="badge bg-gray-600/20 text-gray-400 border border-gray-600/30">
+                  Belum ada HPP
+                </span>
+              </div>
+            )}
+
             <div className="flex gap-1 mt-3">
               <button
                 onClick={() => openEdit(menu)}
@@ -239,7 +432,7 @@ export default function MenuPage() {
           onClick={() => setShowModal(false)}
         >
           <div
-            className="w-full max-w-md card p-6"
+            className="w-full max-w-lg card p-6 max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <h2 className="text-xl font-bold text-angkringan-gold mb-4">
@@ -261,41 +454,44 @@ export default function MenuPage() {
                   required
                 />
               </div>
-              <div>
-                <label className="block text-angkringan-light/80 text-sm mb-1">
-                  Kategori
-                </label>
-                <select
-                  value={form.kategori}
-                  onChange={(e) =>
-                    setForm({ ...form, kategori: e.target.value })
-                  }
-                  className="input-field"
-                >
-                  {getKategoriAktif().map((k) => (
-                    <option key={k} value={k}>
-                      {k}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-angkringan-light/80 text-sm mb-1">
-                  Harga (Rp)
-                </label>
-                <input
-                  type="number"
-                  value={form.harga === 0 ? "" : form.harga}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      harga: e.target.value === "" ? 0 : Number(e.target.value),
-                    })
-                  }
-                  className="input-field"
-                  min="0"
-                  required
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-angkringan-light/80 text-sm mb-1">
+                    Kategori
+                  </label>
+                  <select
+                    value={form.kategori}
+                    onChange={(e) =>
+                      setForm({ ...form, kategori: e.target.value })
+                    }
+                    className="input-field"
+                  >
+                    {getKategoriAktif().map((k) => (
+                      <option key={k} value={k}>
+                        {k}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-angkringan-light/80 text-sm mb-1">
+                    Harga Jual (Rp)
+                  </label>
+                  <input
+                    type="number"
+                    value={form.harga === 0 ? "" : form.harga}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        harga:
+                          e.target.value === "" ? 0 : Number(e.target.value),
+                      })
+                    }
+                    className="input-field"
+                    min="0"
+                    required
+                  />
+                </div>
               </div>
               <div>
                 <label className="block text-angkringan-light/80 text-sm mb-1">
@@ -314,9 +510,167 @@ export default function MenuPage() {
                   ))}
                 </div>
               </div>
+
+              {/* ====== SECTION RESEP / KOMPOSISI ====== */}
+              <div className="border-t border-angkringan-primary/30 pt-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-bold text-angkringan-gold text-sm">
+                    🧪 Resep / Komposisi
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={addRecipeRow}
+                    className="px-3 py-1 text-xs rounded-lg font-bold bg-green-600/20 text-green-400 border border-green-600/30 hover:bg-green-600/30"
+                  >
+                    + Tambah Baris
+                  </button>
+                </div>
+
+                {recipeItems.length === 0 && (
+                  <p className="text-xs text-angkringan-light/40 mb-2">
+                    Belum ada bahan. Tambahkan bahan baku untuk menghitung HPP.
+                  </p>
+                )}
+
+                <div className="space-y-2">
+                  {recipeItems.map((r, idx) => {
+                    const rm = rawMaterials.find(
+                      (m) => m.id === r.raw_material_id,
+                    );
+                    return (
+                      <div key={idx} className="flex gap-2 items-center">
+                        <select
+                          value={r.raw_material_id}
+                          onChange={(e) =>
+                            updateRecipeRow(idx, "raw_material_id", e.target.value)
+                          }
+                          className="input-field !py-2 text-sm flex-1"
+                        >
+                          <option value="">— pilih bahan —</option>
+                          {rawMaterials.map((m) => (
+                            <option key={m.id} value={m.id}>
+                              {m.nama_bahan} ({m.satuan_kecil})
+                            </option>
+                          ))}
+                        </select>
+                        <div className="w-24">
+                          <input
+                            type="number"
+                            value={r.takaran === 0 ? "" : r.takaran}
+                            onChange={(e) =>
+                              updateRecipeRow(idx, "takaran", e.target.value)
+                            }
+                            className="input-field !py-2 text-sm"
+                            placeholder="Takaran"
+                            min="0"
+                            step="0.01"
+                          />
+                        </div>
+                        <span className="text-xs text-angkringan-light/60 w-10">
+                          {rm?.satuan_kecil || r._satuan_kecil || "—"}
+                        </span>
+                        <span className="text-xs text-angkringan-gold font-semibold w-20 text-right">
+                          {formatRupiah(r.biaya || 0)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => removeRecipeRow(idx)}
+                          className="text-red-400 hover:bg-red-600/20 rounded-lg p-1.5"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Total HPP */}
+                <div className="mt-3 p-3 rounded-xl bg-angkringan-primary/10 border border-angkringan-accent/30">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-angkringan-light/70">
+                      Total HPP
+                    </span>
+                    <span className="text-lg font-bold text-angkringan-gold">
+                      {formatRupiah(Math.round(hppTotal))}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* ====== SECTION MARGIN & HARGA JUAL ====== */}
+              <div className="border-t border-angkringan-primary/30 pt-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-angkringan-light/80 text-sm mb-1">
+                      Margin (%)
+                    </label>
+                    <input
+                      type="number"
+                      value={marginPercent}
+                      onChange={(e) =>
+                        setMarginPercent(
+                          e.target.value === "" ? "" : Number(e.target.value),
+                        )
+                      }
+                      className="input-field"
+                      placeholder="cth: 60"
+                      min="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-angkringan-light/80 text-sm mb-1">
+                      Harga Jual (override)
+                    </label>
+                    <input
+                      type="number"
+                      value={hargaJualManual}
+                      onChange={(e) =>
+                        setHargaJualManual(
+                          e.target.value === "" ? "" : Number(e.target.value),
+                        )
+                      }
+                      className="input-field"
+                      placeholder="Kosongkan utk auto"
+                      min="0"
+                    />
+                  </div>
+                </div>
+
+                {hargaJualDisarankan != null && (
+                  <div className="mt-2 p-3 rounded-xl bg-green-600/10 border border-green-600/30">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-angkringan-light/70">
+                        💡 Harga jual disarankan
+                      </span>
+                      <span className="font-bold text-green-400">
+                        {formatRupiah(Math.round(hargaJualDisarankan))}
+                      </span>
+                    </div>
+                    <p className="text-xs text-angkringan-light/50 mt-1">
+                      HPP {formatRupiah(Math.round(hppTotal))} × (1 +{" "}
+                      {Number(marginPercent) / 100})
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {recipeError && (
+                <p className="text-sm text-red-400 bg-red-600/10 rounded-lg px-3 py-2 border border-red-600/30">
+                  ⚠️ {recipeError}
+                </p>
+              )}
+
               <div className="flex gap-2 pt-2">
-                <button type="submit" className="btn-primary flex-1">
-                  {editingMenu ? "Simpan" : "Tambah"}
+                <button
+                  type="submit"
+                  className="btn-primary flex-1"
+                  disabled={savingRecipe}
+                >
+                  {savingRecipe
+                    ? "Menyimpan..."
+                    : editingMenu
+                      ? "Simpan"
+                      : "Tambah"}
                 </button>
                 <button
                   type="button"
@@ -349,7 +703,6 @@ export default function MenuPage() {
               🏷️ Kelola Kategori
             </h2>
 
-            {/* Input tambah kategori */}
             <div className="flex gap-2 mb-4">
               <input
                 type="text"
@@ -364,16 +717,13 @@ export default function MenuPage() {
               </button>
             </div>
 
-            {/* Daftar kategori */}
             <div className="space-y-2 max-h-60 overflow-y-auto">
               {kategoriList.map((k) => (
                 <div
                   key={k.id}
                   className="flex items-center justify-between p-2 bg-angkringan-dark rounded-lg"
                 >
-                  {/* Kiri: nama + badge */}
                   {editingKatId === k.id ? (
-                    // MODE EDIT INLINE
                     <div className="flex items-center gap-1 flex-1">
                       <input
                         type="text"
@@ -400,7 +750,6 @@ export default function MenuPage() {
                       </button>
                     </div>
                   ) : confirmDeleteKatId === k.id ? (
-                    // MODE KONFIRMASI HAPUS INLINE
                     <div className="flex items-center gap-1 flex-1">
                       <span className="text-xs text-red-400">
                         Hapus <>{`"${k.nama}"`}</>?
@@ -419,7 +768,6 @@ export default function MenuPage() {
                       </button>
                     </div>
                   ) : (
-                    // MODE NORMAL (TAMPILAN)
                     <>
                       <div className="flex items-center gap-2">
                         <span
@@ -434,7 +782,6 @@ export default function MenuPage() {
                         </span>
                       </div>
 
-                      {/* Kanan: tombol aksi */}
                       <div className="flex gap-1">
                         <button
                           onClick={() => handleToggleKat(k.id)}
@@ -494,7 +841,8 @@ export default function MenuPage() {
               Hapus Menu?
             </h3>
             <p className="text-angkringan-light/60 text-sm mb-4">
-              Menu yang dihapus tidak bisa dikembalikan
+              Menu yang dihapus tidak bisa dikembalikan. Resep terkait juga
+              akan dihapus.
             </p>
             <div className="flex gap-2">
               <button

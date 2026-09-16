@@ -1,4 +1,4 @@
-import { User, Menu, Transaksi } from "./types";
+import { User, Menu, Transaksi, RawMaterial, ProductRecipeItem } from "./types";
 
 async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, {
@@ -213,6 +213,211 @@ export async function deleteMenu(id: string): Promise<void> {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action: "delete", id }),
+  });
+}
+
+// ==================== BAHAN BAKU (RAW MATERIALS) ====================
+export async function getRawMaterials(): Promise<RawMaterial[]> {
+  try {
+    const materials = await fetchJson<RawMaterial[]>("/api/raw-materials");
+    return Array.isArray(materials) ? materials : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function addRawMaterial(
+  material: Omit<RawMaterial, "id" | "harga_per_satuan_kecil" | "satuan_kecil">,
+): Promise<RawMaterial> {
+  const response = await fetchJson<{
+    success: boolean;
+    rawMaterial?: RawMaterial;
+  }>("/api/raw-materials", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "create", rawMaterial: material }),
+  });
+
+  if (response.success && response.rawMaterial) {
+    return response.rawMaterial;
+  }
+  throw new Error("Gagal menambah bahan baku");
+}
+
+export async function updateRawMaterial(
+  id: string,
+  data: Partial<Omit<RawMaterial, "id" | "harga_per_satuan_kecil" | "satuan_kecil">>,
+): Promise<void> {
+  await fetchJson("/api/raw-materials", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "update", id, data }),
+  });
+}
+
+export async function deleteRawMaterial(id: string): Promise<void> {
+  await fetchJson("/api/raw-materials", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "delete", id }),
+  });
+}
+
+/** Gabungkan beberapa bahan baku menjadi satu bahan gabungan (paket). */
+export interface MergeComponent {
+  raw_material_id: string;
+  takaran: number;
+}
+
+export interface KomponenGabung {
+  nama_bahan: string;
+  takaran: number;
+  biaya: number;
+  satuan_kecil: string;
+}
+
+export interface BahanGabung {
+  id: string;
+  nama_gabungan: string;
+  satuan_kecil: string;
+  total_harga: number;
+  jumlah_komponen: number;
+  is_delete?: string | boolean;
+  update_at?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  data_komponen?: string;
+  komponen?: KomponenGabung[];
+}
+
+/** Ambil seluruh data hasil gabung (history dari tabel bahan_gabung). */
+export async function getBahanGabung(): Promise<BahanGabung[]> {
+  try {
+    const result = await fetchJson<BahanGabung[]>("/api/bahan-gabung");
+    return Array.isArray(result) ? result : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Simpan hasil gabung ke tabel bahan_gabung (bukan bahan baku). */
+export async function addBahanGabung(
+  namaGabungan: string,
+  satuanKecil: string,
+  totalHarga: number,
+  komponen: KomponenGabung[],
+): Promise<void> {
+  const response = await fetchJson<{ success: boolean; error?: string }>(
+    "/api/bahan-gabung",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        nama_gabungan: namaGabungan,
+        satuan_kecil: satuanKecil,
+        total_harga: totalHarga,
+        komponen,
+      }),
+    },
+  );
+  if (!response.success) {
+    throw new Error(response.error || "Gagal menyimpan bahan gabung");
+  }
+}
+
+/** Hapus satu data hasil gabung dari tabel bahan_gabung. */
+export async function deleteBahanGabung(id: string): Promise<void> {
+  await fetchJson<{ success: boolean }>(`/api/bahan-gabung?id=${id}`, {
+    method: "DELETE",
+  });
+}
+
+/** Perbarui konten bahan gabung dan tandai waktu diperbarui. */
+export async function updateBahanGabung(
+  id: string,
+  namaGabungan: string,
+  satuanKecil: string,
+  totalHarga: number,
+  komponen: KomponenGabung[],
+): Promise<void> {
+  const response = await fetchJson<{ success: boolean; error?: string }>(
+    "/api/bahan-gabung",
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id,
+        nama_gabungan: namaGabungan,
+        satuan_kecil: satuanKecil,
+        total_harga: totalHarga,
+        komponen,
+      }),
+    },
+  );
+  if (!response.success) {
+    throw new Error(response.error || "Gagal memperbarui bahan gabung");
+  }
+}
+
+export async function mergeRawMaterials(
+  namaBahan: string,
+  components: MergeComponent[],
+): Promise<RawMaterial> {
+  const response = await fetchJson<{
+    success: boolean;
+    rawMaterial?: RawMaterial;
+    error?: string;
+  }>("/api/raw-materials", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "merge",
+      nama_bahan: namaBahan,
+      components,
+    }),
+  });
+
+  if (response.success && response.rawMaterial) {
+    return response.rawMaterial;
+  }
+  throw new Error(response.error || "Gagal menggabungkan bahan baku");
+}
+
+// ==================== RESEP PRODUK (PRODUCT RECIPE) ====================
+export async function getProductRecipe(productId: string): Promise<ProductRecipeItem[]> {
+  try {
+    const recipe = await fetchJson<ProductRecipeItem[]>(
+      `/api/product-recipe?product_id=${encodeURIComponent(productId)}`,
+    );
+    return Array.isArray(recipe) ? recipe : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function saveProductRecipe(
+  productId: string,
+  items: { raw_material_id: string; takaran: number }[],
+): Promise<void> {
+  await fetchJson("/api/product-recipe", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "save_items", product_id: productId, items }),
+  });
+}
+
+export async function updateProductMargin(
+  productId: string,
+  data: { margin_percent?: number | null; harga_jual?: number },
+): Promise<void> {
+  await fetchJson("/api/product-recipe", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "update_margin",
+      product_id: productId,
+      ...data,
+    }),
   });
 }
 

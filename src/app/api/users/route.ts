@@ -20,7 +20,7 @@ export async function POST(request: Request) {
       const user = data.user;
       const id = await generateId();
       await query(
-        "INSERT INTO users (id, nama, username, password, role) VALUES ($1, $2, $3, $4, $5)",
+        "INSERT INTO users (id, nama, username, password, role) VALUES (?, ?, ?, ?, ?)",
         [id, user.nama, user.username, user.password, user.role || "Kasir"],
       );
       return Response.json({ success: true, user: { ...user, id } });
@@ -45,19 +45,19 @@ export async function POST(request: Request) {
       }
 
       const setClauses = fieldKeys
-        .map((k, i) => `"${k}" = $${i + 1}`)
+        .map((k) => `"${k}" = ?`)
         .join(", ");
       const updateValues = Object.values(updateFields);
       updateValues.push(id);
       await query(
-        `UPDATE users SET ${setClauses} WHERE id = $${fieldKeys.length + 1}`,
+        `UPDATE users SET ${setClauses} WHERE id = ?`,
         updateValues,
       );
       return Response.json({ success: true });
     }
 
     if (data.action === "delete") {
-      await query("DELETE FROM users WHERE id = $1", [data.id]);
+      await query("DELETE FROM users WHERE id = ?", [data.id]);
       return Response.json({ success: true, deleted: data.id });
     }
 

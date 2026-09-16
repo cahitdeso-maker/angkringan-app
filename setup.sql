@@ -13,7 +13,11 @@ CREATE TABLE IF NOT EXISTS menu (
   harga INT NOT NULL,
   stok INT NOT NULL DEFAULT 0,
   foto VARCHAR(10) DEFAULT '🍽️',
-  status ENUM('Tersedia', 'Habis') NOT NULL DEFAULT 'Tersedia'
+  status ENUM('Tersedia', 'Habis') NOT NULL DEFAULT 'Tersedia',
+  hpp_total DECIMAL(14, 2) NOT NULL DEFAULT 0,
+  margin_percent DECIMAL(6, 2) NULL,
+  harga_jual DECIMAL(14, 2) NOT NULL DEFAULT 0,
+  is_deleted CHAR(1) NOT NULL DEFAULT 'f'
 );
 
 CREATE TABLE IF NOT EXISTS transaksi (
@@ -49,6 +53,46 @@ CREATE TABLE IF NOT EXISTS stok_log (
   tanggal DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   keterangan TEXT,
   FOREIGN KEY (menu_id) REFERENCES menu(id)
+);
+
+-- ===== FITUR HPP: Bahan Baku Master =====
+CREATE TABLE IF NOT EXISTS raw_materials (
+  id VARCHAR(36) PRIMARY KEY,
+  nama_bahan VARCHAR(100) NOT NULL,
+  harga_beli DECIMAL(14, 2) NOT NULL DEFAULT 0,
+  jumlah_beli DECIMAL(14, 3) NOT NULL DEFAULT 1,
+  satuan_beli ENUM('kg', 'gram', 'liter', 'ml', 'pcs') NOT NULL DEFAULT 'kg',
+  harga_per_satuan_kecil DECIMAL(14, 4) NOT NULL DEFAULT 0,
+  satuan_kecil ENUM('gram', 'ml', 'pcs') NOT NULL DEFAULT 'gram',
+  is_deleted CHAR(1) NOT NULL DEFAULT 'f',
+  is_gabungan CHAR(1) NOT NULL DEFAULT 'f',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- ===== FITUR HPP: Resep/Komposisi Produk =====
+CREATE TABLE IF NOT EXISTS product_recipe (
+  id VARCHAR(36) PRIMARY KEY,
+  product_id VARCHAR(36) NOT NULL,
+  raw_material_id VARCHAR(36) NOT NULL,
+  takaran DECIMAL(14, 3) NOT NULL DEFAULT 0,
+  biaya DECIMAL(14, 2) NOT NULL DEFAULT 0,
+  FOREIGN KEY (product_id) REFERENCES menu(id),
+  FOREIGN KEY (raw_material_id) REFERENCES raw_materials(id)
+);
+
+-- ===== FITUR GABUNG BAHAN: Data Hasil Gabung =====
+CREATE TABLE IF NOT EXISTS bahan_gabung (
+  id VARCHAR(36) PRIMARY KEY,
+  nama_gabungan VARCHAR(100) NOT NULL,
+  satuan_kecil ENUM('gram', 'ml', 'pcs') NOT NULL DEFAULT 'pcs',
+  total_harga DECIMAL(14, 2) NOT NULL DEFAULT 0,
+  data_komponen TEXT NOT NULL,
+  jumlah_komponen INT NOT NULL DEFAULT 0,
+  is_delete CHAR(1) NOT NULL DEFAULT 'f',
+  update_at TIMESTAMP NULL DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
 INSERT IGNORE INTO users (id, nama, username, password, role) VALUES

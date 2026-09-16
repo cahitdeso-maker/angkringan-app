@@ -89,18 +89,18 @@ export default function UsersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 className="text-xl font-bold text-angkringan-gold">
+          <h1 className="text-lg sm:text-xl font-bold text-angkringan-gold">
             👥 Manajemen User
           </h1>
-          <p className="text-angkringan-light/60 text-sm mt-1">
+          <p className="text-angkringan-light/60 text-xs sm:text-sm mt-1">
             Kelola akun pengguna sistem
           </p>
         </div>
         <button
           onClick={openAdd}
-          className="btn-primary flex items-center gap-2"
+          className="btn-primary flex items-center gap-2 whitespace-nowrap"
         >
           <span>+</span> Tambah User
         </button>
@@ -114,9 +114,62 @@ export default function UsersPage() {
         className="input-field max-w-md"
       />
 
-      <div className="card">
+      {/* ===== Daftar kartu — Mobile & Tablet (Portrait) ===== */}
+      <div className="lg:hidden">
+        {filteredUsers.length === 0 ? (
+          <div className="card p-6 sm:p-8 text-center text-xs sm:text-sm text-angkringan-light/50">
+            {userList.length === 0
+              ? "Belum ada user. Klik 'Tambah User' untuk mulai."
+              : "Tidak ada hasil pencarian."}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 gap-4">
+            {filteredUsers.map((u) => (
+              <div key={u.id} className="card flex flex-col gap-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-angkringan-primary/20 text-angkringan-accent text-lg font-bold uppercase">
+                    {u.nama.charAt(0)}
+                  </span>
+                  <span
+                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${getRoleColor(u.role)}`}
+                  >
+                    {u.role}
+                  </span>
+                </div>
+                <div className="min-w-0">
+                  <p className="font-semibold text-angkringan-light text-sm sm:text-base truncate">
+                    {u.nama}
+                  </p>
+                  <p className="text-angkringan-light/60 text-xs sm:text-sm truncate">
+                    @{u.username}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2 justify-end pt-1">
+                  <button
+                    onClick={() => openEdit(u)}
+                    className="px-3 py-2 text-xs sm:text-sm rounded-lg font-bold bg-blue-600/20 text-blue-400 border border-blue-600/30 hover:bg-blue-600/30 active:scale-95 transition"
+                  >
+                    ✏️ Edit
+                  </button>
+                  <button
+                    onClick={() => setShowDelete(u.id)}
+                    aria-label="Hapus user"
+                    className="px-3 py-2 text-xs sm:text-sm rounded-lg font-bold bg-red-600/20 text-red-400 border border-red-600/30 hover:bg-red-600/30 active:scale-95 transition"
+                  >
+                    🗑️ Hapus
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ===== Tabel klasik — Desktop / Layar Lebar ===== */}
+      <div className="hidden lg:block">
+        <div className="card">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[560px] text-sm">
             <thead>
               <tr className="text-angkringan-light/60 border-b border-angkringan-primary/30">
                 <th className="text-left p-3 font-medium">Nama</th>
@@ -143,16 +196,17 @@ export default function UsersPage() {
                     </span>
                   </td>
                   <td className="p-3 text-right">
-                    <div className="flex gap-1 justify-end">
+                    <div className="flex gap-2 justify-end">
                       <button
                         onClick={() => openEdit(u)}
-                        className="px-3 py-1.5 bg-blue-600/20 text-blue-400 rounded-lg border border-blue-600/30 hover:bg-blue-600/30 text-xs"
+                        className="px-3 py-2 text-xs sm:text-sm rounded-lg font-bold bg-blue-600/20 text-blue-400 border border-blue-600/30 hover:bg-blue-600/30 active:scale-95 transition"
                       >
                         ✏️ Edit
                       </button>
                       <button
                         onClick={() => setShowDelete(u.id)}
-                        className="px-3 py-1.5 bg-red-600/20 text-red-400 rounded-lg border border-red-600/30 hover:bg-red-600/30 text-xs"
+                        aria-label="Hapus user"
+                        className="px-3 py-2 text-xs sm:text-sm rounded-lg font-bold bg-red-600/20 text-red-400 border border-red-600/30 hover:bg-red-600/30 active:scale-95 transition"
                       >
                         🗑️ Hapus
                       </button>
@@ -163,19 +217,20 @@ export default function UsersPage() {
             </tbody>
           </table>
         </div>
+        </div>
       </div>
 
       {/* Add/Edit Modal */}
       {showModal && (
         <div
-          className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 backdrop-blur-sm"
+          className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-3 sm:p-4 backdrop-blur-sm"
           onClick={() => setShowModal(false)}
         >
           <div
-            className="w-full max-w-md card p-6"
+            className="w-full max-w-md card p-4 sm:p-6 max-h-[90vh] overflow-y-auto overscroll-contain pb-6"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="text-xl font-bold text-angkringan-gold mb-4">
+            <h2 className="text-lg sm:text-xl font-bold text-angkringan-gold mb-4">
               {editingUser ? "✏️ Edit User" : "👤 Tambah User"}
             </h2>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -264,11 +319,11 @@ export default function UsersPage() {
       {/* Delete */}
       {showDelete && (
         <div
-          className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 backdrop-blur-sm"
+          className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-3 sm:p-4 backdrop-blur-sm"
           onClick={() => setShowDelete(null)}
         >
           <div
-            className="w-full max-w-sm card p-6 text-center"
+            className="w-full max-w-sm card p-4 sm:p-6 text-center max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <span className="text-5xl block mb-3">⚠️</span>

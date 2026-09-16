@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import Sidebar from "@/components/Sidebar";
@@ -15,7 +15,17 @@ export default function AppLayoutClient({
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  useEffect(() => {
+    if (!loading && !user && pathname !== "/login") {
+      router.replace("/login");
+    }
+  }, [loading, user, pathname, router]);
+
   if (!user) {
+    if (pathname === "/login") {
+      // Belum login & sedang di halaman login -> tampilkan halaman login
+      return <>{children}</>;
+    }
     if (loading) {
       return (
         <div className="min-h-screen flex items-center justify-center bg-angkringan-dark">
@@ -26,14 +36,8 @@ export default function AppLayoutClient({
         </div>
       );
     }
-
-    // If not on login page, redirect to login
-    if (pathname !== "/login") {
-      router.replace("/login");
-      return null;
-    }
-
-    return <>{children}</>;
+    // Belum login & bukan halaman login -> redirect ke /login
+    return null;
   }
 
   return (

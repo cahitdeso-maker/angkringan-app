@@ -21,10 +21,10 @@ export async function GET(request: Request) {
         t.pajak,
         t.metode_bayar,
         t.user_id,
-        t.customer_name AS "customerName",
+        t.customer_name AS customerName,
         COALESCE(
-          json_agg(
-            json_build_object(
+          JSON_ARRAYAGG(
+            JSON_OBJECT(
               'id', d.id,
               'transaksi_id', d.transaksi_id,
               'menu_id', d.menu_id,
@@ -32,9 +32,9 @@ export async function GET(request: Request) {
               'qty', d.qty,
               'harga', d.harga,
               'subtotal', d.subtotal
-            ) ORDER BY d.id
-          ) FILTER (WHERE d.id IS NOT NULL),
-          '[]'::json
+            )
+          ),
+          CAST('[]' AS JSON)
         ) AS items
       FROM transaksi t
       LEFT JOIN detail_transaksi d ON d.transaksi_id = t.id
@@ -44,11 +44,11 @@ export async function GET(request: Request) {
 
     // Date range filtering (priority over periode)
     if (dateStart) {
-      conditions.push(`t.tanggal >= $${params.length + 1}::timestamp`);
+      conditions.push(`t.tanggal >= ?`);
       params.push(formatDateForDB(new Date(dateStart).toISOString()));
     }
     if (dateEnd) {
-      conditions.push(`t.tanggal <= $${params.length + 1}::timestamp`);
+      conditions.push(`t.tanggal <= ?`);
       // Set to end of day
       const endDate = new Date(dateEnd);
       endDate.setHours(23, 59, 59, 999);
@@ -65,7 +65,7 @@ export async function GET(request: Request) {
       } else {
         startDate = new Date(now.getTime() - 30 * 86400000);
       }
-      conditions.push(`t.tanggal >= $${params.length + 1}::timestamp`);
+      conditions.push(`t.tanggal >= ?`);
       params.push(formatDateForDB(startDate.toISOString()));
     }
 
@@ -76,7 +76,7 @@ export async function GET(request: Request) {
     sql += " GROUP BY t.id ORDER BY t.tanggal DESC";
 
     if (limit > 0) {
-      sql += ` LIMIT $${params.length + 1}`;
+      sql += ` LIMIT ?`;
       params.push(limit);
     }
 
@@ -97,10 +97,10 @@ export async function POST(request: Request) {
     const data = await request.json();
 
     if (data.action === "soft_delete") {
-      await query("DELETE FROM detail_transaksi WHERE transaksi_id = $1", [
+      await query("DELETE FROM detail_transaksi WHERE transaksi_id = ?", [
         data.id,
       ]);
-      await query("DELETE FROM transaksi WHERE id = $1", [data.id]);
+      await query("DELETE FROM transaksi WHERE id = ?", [data.id]);
       return Response.json({ success: true, deleted: data.id });
     }
 
@@ -109,7 +109,7 @@ export async function POST(request: Request) {
     const customerName = data.customerName || data.customer_name || null;
 
     await query(
-      "INSERT INTO transaksi (id, tanggal, total, diskon, pajak, metode_bayar, user_id, customer_name) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+      "INSERT INTO transaksi (id, tanggal, total, diskon, pajak, metode_bayar, user_id, customer_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
       [
         id,
         tanggalDB,
@@ -125,7 +125,7 @@ export async function POST(request: Request) {
     for (const item of data.items || []) {
       const detailId = await generateId();
       await query(
-        "INSERT INTO detail_transaksi (id, transaksi_id, menu_id, nama_menu, qty, harga, subtotal, customer_name) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+        "INSERT INTO detail_transaksi (id, transaksi_id, menu_id, nama_menu, qty, harga, subtotal, customer_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         [
           detailId,
           id,

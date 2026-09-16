@@ -9,6 +9,7 @@ export default function LoginPage() {
   const { user, login } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
 
   React.useEffect(() => {
@@ -87,13 +88,22 @@ export default function LoginPage() {
                   🔒
                 </span>
                 <input
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="input-field pl-12"
+                  className="input-field pl-12 pr-12"
                   placeholder="Masukkan password"
                   required
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xl text-angkringan-light/60 hover:text-angkringan-gold transition-colors"
+                  aria-label={showPassword ? "Sembunyikan password" : "Tampilkan password"}
+                  title={showPassword ? "Sembunyikan password" : "Tampilkan password"}
+                >
+                  {showPassword ? "🙈" : "👁️"}
+                </button>
               </div>
             </div>
 
