@@ -11,7 +11,7 @@ export default function RootLayout({
   return (
     <html lang="id">
       <head>
-        <title>POS Angkringan - Warung Digital</title>
+        <title>GIAT COFFEE - Warung Digital</title>
         <meta name="description" content="Sistem POS untuk Warung Angkringan" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </head>

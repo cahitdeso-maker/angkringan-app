@@ -21,10 +21,12 @@ export async function GET(request: Request) {
         t.pajak,
         t.metode_bayar,
         t.user_id,
-        t.customer_name AS customerName,
+        t.customer_name AS "customerName",
+        t.tunai,
+        t.kembalian,
         COALESCE(
-          JSON_ARRAYAGG(
-            JSON_OBJECT(
+          json_agg(
+            json_build_object(
               'id', d.id,
               'transaksi_id', d.transaksi_id,
               'menu_id', d.menu_id,
@@ -33,8 +35,8 @@ export async function GET(request: Request) {
               'harga', d.harga,
               'subtotal', d.subtotal
             )
-          ),
-          CAST('[]' AS JSON)
+          ) FILTER (WHERE d.id IS NOT NULL),
+          '[]'::json
         ) AS items
       FROM transaksi t
       LEFT JOIN detail_transaksi d ON d.transaksi_id = t.id
@@ -109,7 +111,7 @@ export async function POST(request: Request) {
     const customerName = data.customerName || data.customer_name || null;
 
     await query(
-      "INSERT INTO transaksi (id, tanggal, total, diskon, pajak, metode_bayar, user_id, customer_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO transaksi (id, tanggal, total, diskon, pajak, metode_bayar, user_id, customer_name, tunai, kembalian) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       [
         id,
         tanggalDB,
@@ -119,13 +121,15 @@ export async function POST(request: Request) {
         data.metode_bayar,
         data.user_id,
         customerName,
+        data.tunai || 0,
+        data.kembalian || 0,
       ],
     );
 
     for (const item of data.items || []) {
       const detailId = await generateId();
       await query(
-        "INSERT INTO detail_transaksi (id, transaksi_id, menu_id, nama_menu, qty, harga, subtotal, customer_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO detail_transaksi (id, transaksi_id, menu_id, nama_menu, qty, harga, subtotal) VALUES (?, ?, ?, ?, ?, ?, ?)",
         [
           detailId,
           id,
@@ -134,7 +138,6 @@ export async function POST(request: Request) {
           item.qty,
           item.harga,
           item.subtotal,
-          customerName,
         ],
       );
     }

@@ -49,6 +49,8 @@ export const transaksi = pgTable("transaksi", {
   metode_bayar: varchar("metode_bayar", { length: 20 }).notNull(),
   user_id: varchar("user_id", { length: 36 }).notNull(),
   customerName: varchar("customer_name", { length: 100 }),
+  tunai: integer("tunai").notNull().default(0),
+  kembalian: integer("kembalian").notNull().default(0),
 });
 
 export const detailTransaksi = pgTable("detail_transaksi", {

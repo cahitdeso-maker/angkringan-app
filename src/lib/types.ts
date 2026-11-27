@@ -53,6 +53,8 @@ export interface Transaksi {
   metode_bayar: "Tunai" | "QRIS";
   user_id: string;
   customerName?: string;
+  tunai: number;
+  kembalian: number;
   items: DetailTransaksi[];
 }
 

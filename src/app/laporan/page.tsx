@@ -203,7 +203,7 @@ export default function LaporanPage() {
 
   const headerHtml = (title: string) => `
     <div class="header">
-      <h1>WARUNG ANGKRINGAN</h1>
+      <h1>GIAT COFFEE</h1>
       <h2>${title}</h2>
       <p>Periode: ${periodeLabel}</p>
       <p>Dicetak: ${new Date().toLocaleString("id-ID")}</p>
@@ -211,7 +211,7 @@ export default function LaporanPage() {
   `;
 
   const footerHtml = `
-    <div class="footer"><p>Terima Kasih - Selamat Menikmati 🍢</p><p>Laporan digenerate otomatis oleh POS Angkringan</p></div>
+    <div class="footer"><p>Terima Kasih</p></div>
     <div style="text-align:center;margin-top:20px;" class="no-print">
       <button onclick="window.print()" style="padding:10px 30px;background:#8B4513;color:#fff;border:none;border-radius:5px;font-size:16px;cursor:pointer;">🖨️ Cetak Laporan</button>
       <button onclick="window.close()" style="padding:10px 30px;background:#666;color:#fff;border:none;border-radius:5px;font-size:16px;cursor:pointer;margin-left:10px;">Tutup</button>
@@ -549,7 +549,7 @@ export default function LaporanPage() {
           onClick={() => setDetailTransaksi(null)}
         >
           <div
-            className="w-full max-w-md card p-6"
+            className="w-full max-w-md card p-6 max-h-[80vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-center mb-4">
@@ -563,102 +563,107 @@ export default function LaporanPage() {
                 ✕
               </button>
             </div>
-            <div className="space-y-3 text-sm">
-              <div className="flex justify-between border-b border-angkringan-primary/10 pb-2">
-                <span className="text-angkringan-light/60">Waktu</span>
-                <span className="text-angkringan-light">
-                  {formatTanggalShort(detailTransaksi.tanggal)}
-                </span>
-              </div>
-              <div className="flex justify-between border-b border-angkringan-primary/10 pb-2">
-                <span className="text-angkringan-light/60">Pelanggan</span>
-                <span className="text-angkringan-light">
-                  {detailTransaksi.customerName || "-"}
-                </span>
-              </div>
-              <div className="flex justify-between border-b border-angkringan-primary/10 pb-2">
-                <span className="text-angkringan-light/60">Kasir</span>
-                <span className="text-angkringan-light">
-                  {users.find((u) => u.id === detailTransaksi.user_id)?.nama ||
-                    detailTransaksi.user_id}
-                </span>
-              </div>
-              <div className="flex justify-between border-b border-angkringan-primary/10 pb-2">
-                <span className="text-angkringan-light/60">Metode Bayar</span>
-                <span className="badge bg-angkringan-primary/30 text-angkringan-gold text-xs">
-                  {detailTransaksi.metode_bayar}
-                </span>
-              </div>
-            </div>
-            <h3 className="text-md font-semibold text-angkringan-gold mt-4 mb-2">
-              🛒 Items Pesanan
-            </h3>
-            <div className="space-y-1">
-              {detailTransaksi.items.map((item, idx) => (
-                <div
-                  key={idx}
-                  className="flex justify-between items-center p-2 bg-angkringan-dark rounded-lg"
-                >
-                  <div>
-                    <p className="text-sm text-angkringan-light">
-                      {item.nama_menu}
-                    </p>
-                    <p className="text-xs text-angkringan-light/60">
-                      {formatRupiah(item.harga)} x {item.qty}
-                    </p>
-                  </div>
-                  <span className="text-sm font-semibold text-angkringan-accent">
-                    {formatRupiah(item.subtotal)}
+
+            <div className="bg-angkringan-dark/60 rounded-xl p-3 border border-angkringan-primary/10">
+              <div className="flex items-start justify-between mb-1.5">
+                <div>
+                  <p className="text-xs text-angkringan-light/60 font-mono">
+                    {formatTanggalShort(detailTransaksi.tanggal)}
+                  </p>
+                  <p className="text-xs text-angkringan-light/80 mt-0.5">
+                    {detailTransaksi.customerName || "Walk-in"}
+                  </p>
+                </div>
+                <div className="text-right flex-shrink-0 ml-2">
+                  <p className="text-sm font-bold text-angkringan-accent">
+                    {formatRupiah(detailTransaksi.total)}
+                  </p>
+                  <span className="inline-block mt-0.5 text-[9px] px-1.5 py-0.5 rounded bg-angkringan-primary/30 text-angkringan-gold">
+                    {detailTransaksi.metode_bayar}
                   </span>
                 </div>
-              ))}
+              </div>
+              <div className="flex flex-wrap gap-1 pt-1.5 border-t border-angkringan-primary/10">
+                {detailTransaksi.items.map((item, idx) => (
+                  <span
+                    key={idx}
+                    className="bg-angkringan-primary/20 text-angkringan-gold text-[10px] px-2 py-0.5 rounded-full"
+                  >
+                    {item.nama_menu} x{item.qty}
+                  </span>
+                ))}
+              </div>
             </div>
-            {detailTransaksi.diskon > 0 && (
-              <div className="flex justify-between text-sm mt-2 text-red-400">
-                <span>Diskon ({detailTransaksi.diskon}%)</span>
+
+            <div className="mt-3 space-y-1 text-sm">
+              <div className="flex justify-between text-angkringan-light/60">
+                <span>Subtotal</span>
                 <span>
-                  -
                   {formatRupiah(
-                    Math.round(
-                      (detailTransaksi.items.reduce(
-                        (s, i) => s + i.subtotal,
-                        0,
-                      ) *
-                        detailTransaksi.diskon) /
-                        100,
-                    ),
+                    detailTransaksi.items.reduce((s, i) => s + i.subtotal, 0),
                   )}
                 </span>
               </div>
-            )}
-            {detailTransaksi.pajak > 0 && (
-              <div className="flex justify-between text-sm mt-1 text-angkringan-light/60">
-                <span>Pajak PPN ({detailTransaksi.pajak}%)</span>
-                <span>
-                  +
-                  {formatRupiah(
-                    Math.round(
-                      ((detailTransaksi.items.reduce(
-                        (s, i) => s + i.subtotal,
-                        0,
-                      ) -
+              {detailTransaksi.diskon > 0 && (
+                <div className="flex justify-between text-red-400">
+                  <span>Diskon ({detailTransaksi.diskon}%)</span>
+                  <span>
+                    -
+                    {formatRupiah(
+                      Math.round(
                         (detailTransaksi.items.reduce(
                           (s, i) => s + i.subtotal,
                           0,
                         ) *
                           detailTransaksi.diskon) /
-                          100) *
-                        detailTransaksi.pajak) /
-                        100,
-                    ),
-                  )}
-                </span>
+                          100,
+                      ),
+                    )}
+                  </span>
+                </div>
+              )}
+              {detailTransaksi.pajak > 0 && (
+                <div className="flex justify-between text-angkringan-light/60">
+                  <span>Pajak PPN ({detailTransaksi.pajak}%)</span>
+                  <span>
+                    +
+                    {formatRupiah(
+                      Math.round(
+                        ((detailTransaksi.items.reduce(
+                          (s, i) => s + i.subtotal,
+                          0,
+                        ) -
+                          (detailTransaksi.items.reduce(
+                            (s, i) => s + i.subtotal,
+                            0,
+                          ) *
+                            detailTransaksi.diskon) /
+                            100) *
+                          detailTransaksi.pajak) /
+                          100,
+                      ),
+                    )}
+                  </span>
+                </div>
+              )}
+              {detailTransaksi.metode_bayar === "Tunai" && (
+                <>
+                  <div className="flex justify-between text-angkringan-light/60">
+                    <span>Tunai</span>
+                    <span>{formatRupiah(detailTransaksi.tunai || 0)}</span>
+                  </div>
+                  <div className="flex justify-between text-green-400">
+                    <span>Kembalian</span>
+                    <span>{formatRupiah(detailTransaksi.kembalian || 0)}</span>
+                  </div>
+                </>
+              )}
+              <div className="flex justify-between text-lg font-bold text-angkringan-gold border-t border-angkringan-primary/30 pt-2">
+                <span>TOTAL</span>
+                <span>{formatRupiah(detailTransaksi.total)}</span>
               </div>
-            )}
-            <div className="flex justify-between text-lg font-bold text-angkringan-gold border-t border-angkringan-primary/30 pt-3 mt-3">
-              <span>TOTAL</span>
-              <span>{formatRupiah(detailTransaksi.total)}</span>
             </div>
+
             <button
               onClick={() => setDetailTransaksi(null)}
               className="btn-primary w-full mt-4 bg-gray-600/50 hover:bg-gray-600/70"

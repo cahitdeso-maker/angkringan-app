@@ -42,25 +42,17 @@ export default function AppLayoutClient({
 
   return (
     <div className="h-screen flex overflow-hidden">
-      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Sidebar
+        isOpen={sidebarOpen}
+        onOpen={() => setSidebarOpen(true)}
+        onClose={() => setSidebarOpen(false)}
+      />
 
-      <div className="flex-1 flex flex-col min-h-0">
-        <header className="lg:hidden bg-angkringan-dark border-b border-angkringan-primary/30 p-3 flex items-center justify-between flex-shrink-0">
-          <button
-            onClick={() => setSidebarOpen(true)}
-            className="text-angkringan-gold text-2xl"
-          >
-            ☰
-          </button>
-          <div className="flex items-center gap-2">
-            <span className="text-lg">🏮</span>
-            <span className="text-angkringan-gold font-semibold">
-              POS Angkringan
-            </span>
-          </div>
-          <div />
-        </header>
-
+      <div
+        className={`flex-1 flex flex-col min-h-0 transition-[margin] duration-300 ease-in-out ${
+          sidebarOpen ? "ml-64" : "ml-8"
+        }`}
+      >
         <main className="flex-1 p-4 lg:p-6 overflow-y-auto min-h-0">
           {children}
         </main>

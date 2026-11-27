@@ -147,7 +147,7 @@ export default function BahanBakuPage() {
               🧺 Bahan Baku
             </h1>
             <p className="text-angkringan-light/60 text-xs sm:text-sm mt-1">
-              Master bahan baku — harga per gram/ml/pcs dihitung otomatis
+              Master bahan baku — harga per gram/ml/pcs
             </p>
           </div>
           <button onClick={openAdd} className="btn-primary whitespace-nowrap">

@@ -23,7 +23,6 @@ import { Menu, RawMaterial } from "@/lib/types";
 import {
   hitungBiayaResep,
   hitungHppTotal,
-  hitungHargaJualDisarankan,
 } from "@/lib/hpp";
 
 const EMOJIS =
@@ -61,7 +60,6 @@ export default function MenuPage() {
     status: "Tersedia" as Menu["status"],
   });
   const [marginPercent, setMarginPercent] = useState<number | "">("");
-  const [hargaJualManual, setHargaJualManual] = useState<number | "">("");
 
   // Inline edit state (inside kategori modal)
   const [editingKatId, setEditingKatId] = useState<string | null>(null);
@@ -103,7 +101,6 @@ export default function MenuPage() {
     setEditingMenu(null);
     setRecipeItems([]);
     setMarginPercent("");
-    setHargaJualManual("");
     setRecipeError("");
   };
 
@@ -124,7 +121,6 @@ export default function MenuPage() {
     setMarginPercent(
       menu.margin_percent == null ? "" : (menu.margin_percent as number),
     );
-    setHargaJualManual("");
     setRecipeError("");
 
     // Load resep existing
@@ -148,8 +144,7 @@ export default function MenuPage() {
 
     let savedId = editingMenu?.id;
 
-    const finalHarga =
-      hargaJualManual !== "" ? Number(hargaJualManual) : form.harga;
+    const finalHarga = form.harga;
 
     if (editingMenu) {
       await updateMenu(editingMenu.id, {
@@ -181,12 +176,10 @@ export default function MenuPage() {
           await saveProductRecipe(savedId, validItems);
         }
 
-        if (marginPercent !== "" || hargaJualManual !== "") {
+        if (marginPersen != null) {
           await updateProductMargin(savedId, {
-            ...(marginPercent !== "" ? { margin_percent: Number(marginPercent) } : {}),
-            ...(hargaJualManual !== ""
-              ? { harga_jual: Number(hargaJualManual) }
-              : {}),
+            margin_percent: marginPersen,
+            harga_jual: finalHarga,
           });
         }
 
@@ -323,12 +316,20 @@ export default function MenuPage() {
     );
   }, [recipeItems]);
 
-  const hargaJualDisarankan = useMemo(() => {
-    return hitungHargaJualDisarankan(
-      hppTotal,
-      marginPercent === "" ? null : Number(marginPercent),
-    );
-  }, [hppTotal, marginPercent]);
+  // Harga jual final mengikuti harga jual yang diinput pada form
+  const hargaJualFinal = form.harga;
+
+  // Margin keuntungan (rupiah) = harga jual - HPP
+  const marginRupiah =
+    hppTotal > 0 && hargaJualFinal > 0
+      ? Math.round(hargaJualFinal - hppTotal)
+      : null;
+
+  // Persentase margin (untuk disimpan ke DB, dipakai recalculateProduct)
+  const marginPersen =
+    hppTotal > 0 && hargaJualFinal > 0
+      ? Math.round(((hargaJualFinal - hppTotal) / hppTotal) * 10000) / 100
+      : null;
 
   return (
     <div className="space-y-6">
@@ -389,7 +390,12 @@ export default function MenuPage() {
                 </span>
                 {menu.margin_percent != null && (
                   <span className="badge bg-cyan-600/20 text-cyan-300 border border-cyan-600/30">
-                    Margin {menu.margin_percent}%
+                    Margin{" "}
+                    {formatRupiah(
+                      Math.round(
+                        (menu.harga_jual || menu.harga) - menu.hpp_total,
+                      ),
+                    )}
                   </span>
                 )}
               </div>
@@ -602,53 +608,53 @@ export default function MenuPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-angkringan-light/80 text-sm mb-1">
-                      Margin (%)
+                      Margin (Rp)
                     </label>
-                    <input
-                      type="number"
-                      value={marginPercent}
-                      onChange={(e) =>
-                        setMarginPercent(
-                          e.target.value === "" ? "" : Number(e.target.value),
-                        )
-                      }
-                      className="input-field"
-                      placeholder="cth: 60"
-                      min="0"
-                    />
+                    <div className="input-field bg-angkringan-dark/50 flex items-center justify-between">
+                      {/* <span className="text-angkringan-light/50 text-xs">
+                        Otomatis
+                      </span> */}
+                      <span className="font-bold text-cyan-300">
+                        {marginRupiah != null
+                          ? formatRupiah(marginRupiah)
+                          : "—"}
+                      </span>
+                    </div>
                   </div>
                   <div>
                     <label className="block text-angkringan-light/80 text-sm mb-1">
-                      Harga Jual (override)
+                      Harga Jual (Rp)
                     </label>
                     <input
                       type="number"
-                      value={hargaJualManual}
+                      value={form.harga === 0 ? "" : form.harga}
                       onChange={(e) =>
-                        setHargaJualManual(
-                          e.target.value === "" ? "" : Number(e.target.value),
-                        )
+                        setForm({
+                          ...form,
+                          harga:
+                            e.target.value === "" ? 0 : Number(e.target.value),
+                        })
                       }
                       className="input-field"
-                      placeholder="Kosongkan utk auto"
+                      placeholder="Harga jual"
                       min="0"
                     />
                   </div>
                 </div>
 
-                {hargaJualDisarankan != null && (
-                  <div className="mt-2 p-3 rounded-xl bg-green-600/10 border border-green-600/30">
+                {marginRupiah != null && (
+                  <div className="mt-2 p-3 rounded-xl bg-cyan-600/10 border border-cyan-600/30">
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-angkringan-light/70">
-                        💡 Harga jual disarankan
+                        💰 Margin (Rp)
                       </span>
-                      <span className="font-bold text-green-400">
-                        {formatRupiah(Math.round(hargaJualDisarankan))}
+                      <span className="font-bold text-cyan-300">
+                        {formatRupiah(marginRupiah)}
                       </span>
                     </div>
                     <p className="text-xs text-angkringan-light/50 mt-1">
-                      HPP {formatRupiah(Math.round(hppTotal))} × (1 +{" "}
-                      {Number(marginPercent) / 100})
+                      Harga Jual {formatRupiah(hargaJualFinal)} − HPP{" "}
+                      {formatRupiah(Math.round(hppTotal))}
                     </p>
                   </div>
                 )}

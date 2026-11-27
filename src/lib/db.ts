@@ -62,6 +62,8 @@ const TABLE_DDL: [string, string][] = [
       metode_bayar VARCHAR(20) NOT NULL,
       user_id VARCHAR(36) NOT NULL,
       customer_name VARCHAR(100) NULL,
+      tunai INT NOT NULL DEFAULT 0,
+      kembalian INT NOT NULL DEFAULT 0,
       deleted_at TIMESTAMP NULL
     )`,
   ],
@@ -139,6 +141,13 @@ function init() {
       for (const [, ddl] of TABLE_DDL) {
         await client.unsafe(ddl);
       }
+      // Migrasi kolom tunai & kembalian untuk tabel transaksi yang sudah ada
+      await client.unsafe(
+        `ALTER TABLE transaksi ADD COLUMN IF NOT EXISTS tunai INT NOT NULL DEFAULT 0`,
+      );
+      await client.unsafe(
+        `ALTER TABLE transaksi ADD COLUMN IF NOT EXISTS kembalian INT NOT NULL DEFAULT 0`,
+      );
     })().catch((err) => {
       initPromise = null;
       throw err;

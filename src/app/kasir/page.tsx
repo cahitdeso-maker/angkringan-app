@@ -7,7 +7,9 @@ import {
   getMenu,
   addTransaksi,
   getKategoriAktif,
+  getTransaksiOptimized,
   formatRupiah,
+  formatTanggalShort,
 } from "@/lib/data";
 import { Menu, Transaksi } from "@/lib/types";
 
@@ -27,12 +29,37 @@ export default function KasirPage() {
   const [diskon, setDiskon] = useState(0);
   const [pajak, setPajak] = useState(0);
   const [metodeBayar, setMetodeBayar] = useState<"Tunai" | "QRIS">("Tunai");
+  const [tunai, setTunai] = useState(0);
   const [showReceipt, setShowReceipt] = useState(false);
   const [lastTransaction, setLastTransaction] = useState<Transaksi | null>(
     null,
   );
   const [searchTerm, setSearchTerm] = useState("");
   const [customerName, setCustomerName] = useState("");
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyList, setHistoryList] = useState<Transaksi[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  const openHistory = async () => {
+    setShowHistory(true);
+    setHistoryLoading(true);
+    try {
+      const today = new Date().toISOString().split("T")[0];
+      const data = await getTransaksiOptimized({
+        dateStart: today,
+        dateEnd: today,
+      });
+      const sorted = [...data].sort(
+        (a, b) => new Date(b.tanggal).getTime() - new Date(a.tanggal).getTime(),
+      );
+      setHistoryList(sorted);
+    } catch (error) {
+      console.error("Gagal memuat history:", error);
+      setHistoryList([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
 
   useEffect(() => {
     const loadData = async () => {
@@ -112,6 +139,9 @@ export default function KasirPage() {
   const diskonAmount = (subtotal * diskon) / 100;
   const pajakAmount = (subtotal - diskonAmount) * (pajak / 100);
   const total = subtotal - diskonAmount + pajakAmount;
+  const totalBayar = Math.round(total);
+  const kembalian = tunai - totalBayar;
+  const tunaiKurang = metodeBayar === "Tunai" && tunai < totalBayar;
 
   const handleBayar = async () => {
     if (cart.length === 0) {
@@ -124,14 +154,21 @@ export default function KasirPage() {
       return;
     }
 
+    if (metodeBayar === "Tunai" && tunai < totalBayar) {
+      alert("Tunai kurang dari total belanja!");
+      return;
+    }
+
     const transaksi: Omit<Transaksi, "id"> = {
       tanggal: new Date().toISOString(),
-      total: Math.round(total),
+      total: totalBayar,
       diskon,
       pajak,
       metode_bayar: metodeBayar,
       user_id: user.id,
       customerName: customerName || undefined,
+      tunai: metodeBayar === "Tunai" ? tunai : 0,
+      kembalian: metodeBayar === "Tunai" ? kembalian : 0,
       items: cart.map((item) => ({
         id: "",
         transaksi_id: "",
@@ -150,6 +187,7 @@ export default function KasirPage() {
       setCart([]);
       setDiskon(0);
       setPajak(0);
+      setTunai(0);
       setCustomerName("");
     } catch (error) {
       console.error("Gagal menyimpan transaksi:", error);
@@ -189,11 +227,12 @@ export default function KasirPage() {
             {/* HEADER */}
             <div className="text-center">
               <div style={{ fontWeight: "900", fontSize: "16px" }}>
-                WARUNG ANGKRINGAN
+                GIAT COFFEE
               </div>
-              <div>Jl. Yos Sudarso, Gombong</div>
-              <div>Kebumen, Jawa Tengah</div>
-              <div>Telp. 08xxxxxxxxxx</div>
+              <div>SPBU Pertamina 44.531.25 Ijo</div>
+              <div>Jl. Nasional III Buniayu</div>
+              <div>Tambak, Banyumas, Jawa Tengah</div>
+              <div>Telp. 085-175-078-071</div>
             </div>
             <hr className="border-0 border-t-2 border-gray-500 my-2" />
             <div>
@@ -279,9 +318,22 @@ export default function KasirPage() {
               <span>Metode Bayar</span>
               <span>{lastTransaction.metode_bayar}</span>
             </div>
+            {lastTransaction.metode_bayar === "Tunai" && (
+              <>
+                <div className="flex justify-between text-xs">
+                  <span>Tunai</span>
+                  <span>{formatRupiah(lastTransaction.tunai || 0)}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span>Kembalian</span>
+                  <span>{formatRupiah(lastTransaction.kembalian || 0)}</span>
+                </div>
+              </>
+            )}
             <div className="text-center mt-3 pt-2 border-t-2 border-gray-500 text-xs">
-              <p>Terima Kasih!</p>
-              <p>Selamat Menikmati 🍢</p>
+              <p>
+                Terima Kasih</p>
+              <p>Selamat Menikmati</p>
               <div>Kasir : {user?.nama}</div>
             </div>
           </div>
@@ -304,13 +356,21 @@ export default function KasirPage() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-4">
       <div className="flex flex-col">
-        <div className="mb-3">
-          <h1 className="text-xl font-bold text-angkringan-gold">
-            💳 POS Kasir
-          </h1>
-          <p className="text-angkringan-light/60 text-sm">
-            Pilih menu untuk menambah transaksi
-          </p>
+        <div className="mb-3 flex items-start justify-between gap-2">
+          <div>
+            <h1 className="text-xl font-bold text-angkringan-gold">
+              💳 POS Kasir
+            </h1>
+            <p className="text-angkringan-light/60 text-sm">
+              Pilih menu untuk menambah transaksi
+            </p>
+          </div>
+          <button
+            onClick={openHistory}
+            className="btn-primary text-xs px-3 py-1.5 whitespace-nowrap no-print"
+          >
+            🕒 History Order
+          </button>
         </div>
         <input
           type="text"
@@ -454,6 +514,21 @@ export default function KasirPage() {
               </button>
             ))}
           </div>
+          {metodeBayar === "Tunai" && (
+            <div>
+              <label className="text-xs text-angkringan-light/60">
+                Tunai (Rp)
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={tunai === 0 ? "" : tunai}
+                onChange={(e) => setTunai(Number(e.target.value) || 0)}
+                className="input-field text-sm py-1"
+                placeholder="0"
+              />
+            </div>
+          )}
           <div className="space-y-1 text-sm">
             <div className="flex justify-between text-angkringan-light/60">
               <span>Subtotal</span>
@@ -472,19 +547,109 @@ export default function KasirPage() {
               </div>
             )}
             <div className="flex justify-between text-lg font-bold text-angkringan-gold border-t border-angkringan-primary/30 pt-2">
-              <span>Total</span>
-              <span>{formatRupiah(Math.round(total))}</span>
+              <span>Total Belanja</span>
+              <span>{formatRupiah(totalBayar)}</span>
             </div>
+            {metodeBayar === "Tunai" && (
+              <>
+                <div className="flex justify-between text-angkringan-light/60">
+                  <span>Tunai</span>
+                  <span>{formatRupiah(tunai)}</span>
+                </div>
+                {tunaiKurang ? (
+                  <div className="flex justify-between text-red-400 font-semibold">
+                    <span>Tunai Kurang</span>
+                    <span>{formatRupiah(totalBayar - tunai)}</span>
+                  </div>
+                ) : (
+                  <div className="flex justify-between text-green-400 font-semibold">
+                    <span>Kembalian</span>
+                    <span>{formatRupiah(kembalian)}</span>
+                  </div>
+                )}
+              </>
+            )}
           </div>
           <button
             onClick={handleBayar}
-            disabled={cart.length === 0}
+            disabled={cart.length === 0 || tunaiKurang}
             className="btn-primary w-full py-3 text-lg"
           >
-            💳 Bayar {formatRupiah(Math.round(total))}
+            💳 Bayar {formatRupiah(totalBayar)}
           </button>
         </div>
       </div>
+
+      {showHistory && (
+        <div
+          className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm no-print"
+          onClick={() => setShowHistory(false)}
+        >
+          <div
+            className="w-full max-w-lg card p-6 max-h-[80vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-bold text-angkringan-gold">
+                🕒 History Order
+              </h2>
+              <button
+                onClick={() => setShowHistory(false)}
+                className="text-angkringan-light/60 hover:text-angkringan-light text-xl"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto space-y-2">
+              {historyLoading ? (
+                <p className="text-center text-angkringan-light/50 py-8">
+                  Memuat history...
+                </p>
+              ) : historyList.length === 0 ? (
+                <p className="text-center text-angkringan-light/50 py-8">
+                  Belum ada transaksi
+                </p>
+              ) : (
+                historyList.map((t) => (
+                  <div
+                    key={t.id}
+                    className="bg-angkringan-dark/60 rounded-xl p-3 border border-angkringan-primary/10"
+                  >
+                    <div className="flex items-start justify-between mb-1.5">
+                      <div>
+                        <p className="text-xs text-angkringan-light/60 font-mono">
+                          {formatTanggalShort(t.tanggal)}
+                        </p>
+                        <p className="text-xs text-angkringan-light/80 mt-0.5">
+                          {t.customerName || "Walk-in"}
+                        </p>
+                      </div>
+                      <div className="text-right flex-shrink-0 ml-2">
+                        <p className="text-sm font-bold text-angkringan-accent">
+                          {formatRupiah(t.total)}
+                        </p>
+                        <span className="inline-block mt-0.5 text-[9px] px-1.5 py-0.5 rounded bg-angkringan-primary/30 text-angkringan-gold">
+                          {t.metode_bayar}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-1 pt-1.5 border-t border-angkringan-primary/10">
+                      {t.items.map((item, idx) => (
+                        <span
+                          key={idx}
+                          className="bg-angkringan-primary/20 text-angkringan-gold text-[10px] px-2 py-0.5 rounded-full"
+                        >
+                          {item.nama_menu} x{item.qty}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
